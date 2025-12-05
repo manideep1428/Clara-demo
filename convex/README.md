@@ -1,122 +1,90 @@
-# Convex Backend - Authentication System
+# Welcome to your Convex functions directory!
 
-This directory contains the Convex backend for the custom email authentication system.
+Write your Convex functions here.
+See https://docs.convex.dev/functions for more.
 
-## Files
+A query function that takes two arguments looks like:
 
-- **`schema.ts`** - Database schema definition for users and verification codes
-- **`auth.ts`** - Authentication mutations and queries
+```ts
+// convex/myFunctions.ts
+import { query } from "./_generated/server";
+import { v } from "convex/values";
 
-## Environment Variables Required
+export const myQueryFunction = query({
+  // Validators for arguments.
+  args: {
+    first: v.number(),
+    second: v.string(),
+  },
 
-Set these in your Convex deployment:
+  // Function implementation.
+  handler: async (ctx, args) => {
+    // Read the database as many times as you need here.
+    // See https://docs.convex.dev/database/reading-data.
+    const documents = await ctx.db.query("tablename").collect();
 
-```bash
-# Development
-npx convex env set RESEND_API_KEY re_your_api_key_here
-npx convex env set APP_URL http://localhost:3000
+    // Arguments passed from the client are properties of the args object.
+    console.log(args.first, args.second);
 
-# Production
-npx convex env set RESEND_API_KEY re_your_api_key_here --prod
-npx convex env set APP_URL https://yourdomain.com --prod
+    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
+    // remove non-public properties, or create new objects.
+    return documents;
+  },
+});
 ```
 
-## Database Tables
+Using this query function in a React component looks like:
 
-### `users`
-Stores user account information.
-
-**Fields:**
-- `email` (string) - Unique user email
-- `password` (string) - Hashed password (bcrypt)
-- `name` (string, optional) - User's display name
-- `isVerified` (boolean) - Email verification status
-- `createdAt` (number) - Account creation timestamp
-
-**Indexes:**
-- `by_email` - For fast email lookups
-
-### `verificationCodes`
-Stores temporary verification codes for email verification.
-
-**Fields:**
-- `email` (string) - Associated user email
-- `code` (string) - Unique verification code
-- `expiresAt` (number) - Expiration timestamp (15 minutes from creation)
-- `type` (union: "signup" | "login") - Code purpose
-- `createdAt` (number) - Code creation timestamp
-
-**Indexes:**
-- `by_email` - For finding codes by email
-- `by_code` - For verifying codes
-
-## API Functions
-
-### Mutations
-
-#### `signup(email, password, name?)`
-Creates a new user account and sends verification email.
-
-**Returns:** `{ success: boolean, message: string }`
-
-#### `login(email, password)`
-Authenticates user and returns user data if verified.
-
-**Returns:** `{ success: boolean, user?: object, needsVerification?: boolean }`
-
-#### `verifyEmail(code)`
-Verifies user email with the provided code.
-
-**Returns:** `{ success: boolean, user: object }`
-
-#### `resendVerificationCode(email)`
-Resends verification code to the user's email.
-
-**Returns:** `{ success: boolean, message: string }`
-
-### Queries
-
-#### `getCurrentUser(email)`
-Retrieves user information by email.
-
-**Returns:** `{ id, email, name?, isVerified } | null`
-
-## Email Configuration
-
-Emails are sent using the Resend API. The default sender is `onboarding@resend.dev`.
-
-To use a custom domain:
-1. Verify your domain in Resend
-2. Update the `from` field in `auth.ts`:
-   ```typescript
-   from: "noreply@yourdomain.com"
-   ```
-
-## Security Notes
-
-- Passwords are hashed using bcryptjs with 10 salt rounds
-- Verification codes expire after 15 minutes
-- Codes are automatically deleted after successful verification
-- Email uniqueness is enforced at the database level
-
-## Development
-
-Run Convex in development mode:
-```bash
-npx convex dev
+```ts
+const data = useQuery(api.myFunctions.myQueryFunction, {
+  first: 10,
+  second: "hello",
+});
 ```
 
-This will:
-- Watch for file changes
-- Regenerate TypeScript types
-- Sync schema with the database
-- Enable real-time updates
+A mutation function looks like:
 
-## Type Generation
+```ts
+// convex/myFunctions.ts
+import { mutation } from "./_generated/server";
+import { v } from "convex/values";
 
-Convex automatically generates TypeScript types in `_generated/`. These types are used throughout the application for type safety.
+export const myMutationFunction = mutation({
+  // Validators for arguments.
+  args: {
+    first: v.string(),
+    second: v.string(),
+  },
 
-If you see TypeScript errors, ensure Convex is running:
-```bash
-npx convex dev
+  // Function implementation.
+  handler: async (ctx, args) => {
+    // Insert or modify documents in the database here.
+    // Mutations can also read from the database like queries.
+    // See https://docs.convex.dev/database/writing-data.
+    const message = { body: args.first, author: args.second };
+    const id = await ctx.db.insert("messages", message);
+
+    // Optionally, return a value from your mutation.
+    return await ctx.db.get(id);
+  },
+});
 ```
+
+Using this mutation function in a React component looks like:
+
+```ts
+const mutation = useMutation(api.myFunctions.myMutationFunction);
+function handleButtonPress() {
+  // fire and forget, the most common way to use mutations
+  mutation({ first: "Hello!", second: "me" });
+  // OR
+  // use the result once the mutation has completed
+  mutation({ first: "Hello!", second: "me" }).then((result) =>
+    console.log(result),
+  );
+}
+```
+
+Use the Convex CLI to push your functions to a deployment. See everything
+the Convex CLI can do by running `npx convex -h` in your project root
+directory. To learn more, launch the docs with `npx convex docs`.

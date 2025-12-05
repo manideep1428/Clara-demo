@@ -9,13 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TestLiveRouteImport } from './routes/test-live'
+import { Route as TestRouteImport } from './routes/test'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DesignDesignIdRouteImport } from './routes/design.$designId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
-import { Route as AuthSignupRouteImport } from './routes/auth.signup'
-import { Route as AuthLoginRouteImport } from './routes/auth.login'
 
+const TestLiveRoute = TestLiveRouteImport.update({
+  id: '/test-live',
+  path: '/test-live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestRoute = TestRouteImport.update({
+  id: '/test',
+  path: '/test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -36,30 +46,20 @@ const AuthVerifyRoute = AuthVerifyRouteImport.update({
   path: '/auth/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthSignupRoute = AuthSignupRouteImport.update({
-  id: '/auth/signup',
-  path: '/auth/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: '/auth/login',
-  path: '/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
+  '/test': typeof TestRoute
+  '/test-live': typeof TestLiveRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/design/$designId': typeof DesignDesignIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
+  '/test': typeof TestRoute
+  '/test-live': typeof TestLiveRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/design/$designId': typeof DesignDesignIdRoute
 }
@@ -67,8 +67,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
+  '/test': typeof TestRoute
+  '/test-live': typeof TestLiveRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/design/$designId': typeof DesignDesignIdRoute
 }
@@ -77,24 +77,24 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/auth/login'
-    | '/auth/signup'
+    | '/test'
+    | '/test-live'
     | '/auth/verify'
     | '/design/$designId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
-    | '/auth/login'
-    | '/auth/signup'
+    | '/test'
+    | '/test-live'
     | '/auth/verify'
     | '/design/$designId'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
-    | '/auth/login'
-    | '/auth/signup'
+    | '/test'
+    | '/test-live'
     | '/auth/verify'
     | '/design/$designId'
   fileRoutesById: FileRoutesById
@@ -102,14 +102,28 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
-  AuthLoginRoute: typeof AuthLoginRoute
-  AuthSignupRoute: typeof AuthSignupRoute
+  TestRoute: typeof TestRoute
+  TestLiveRoute: typeof TestLiveRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
   DesignDesignIdRoute: typeof DesignDesignIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/test-live': {
+      id: '/test-live'
+      path: '/test-live'
+      fullPath: '/test-live'
+      preLoaderRoute: typeof TestLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test': {
+      id: '/test'
+      path: '/test'
+      fullPath: '/test'
+      preLoaderRoute: typeof TestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -138,28 +152,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/signup': {
-      id: '/auth/signup'
-      path: '/auth/signup'
-      fullPath: '/auth/signup'
-      preLoaderRoute: typeof AuthSignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/login': {
-      id: '/auth/login'
-      path: '/auth/login'
-      fullPath: '/auth/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
-  AuthLoginRoute: AuthLoginRoute,
-  AuthSignupRoute: AuthSignupRoute,
+  TestRoute: TestRoute,
+  TestLiveRoute: TestLiveRoute,
   AuthVerifyRoute: AuthVerifyRoute,
   DesignDesignIdRoute: DesignDesignIdRoute,
 }

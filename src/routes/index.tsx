@@ -1,156 +1,307 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import {
-  Zap,
-  Server,
-  Route as RouteIcon,
-  Shield,
-  Waves,
-  Sparkles,
-  LogOut,
-  User,
-} from 'lucide-react'
-import { useAuth } from '../hooks/useAuth'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useState, useRef, useEffect } from "react"
+import { motion } from "framer-motion"
+import { ArrowUp, Loader, Paperclip } from "lucide-react"
+import { PromptSuggestions } from "@/components/PromptSuggestions"
+import { HeroHeading } from '@/components/hero-heading'
+import { LiquidGlassHeader } from '@/components/liquid-topbar'
+import { FileAttachments } from '@/components/FileAttachments'
+import { generateDesignTitle } from '@/api/generateDesignTitle'
+import { useConvexMutation } from '@convex-dev/react-query'
+import { api } from '../../convex/_generated/api'
+import { useUser, useClerk } from '@clerk/clerk-react'
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({
+  component: Dashboard,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      prompt: (search.prompt as string) || '',
+    }
+  },
+})
 
-function App() {
-  const { user, isAuthenticated, logout } = useAuth()
-  const features = [
-    {
-      icon: <Zap className="w-12 h-12 text-cyan-400" />,
-      title: 'Powerful Server Functions',
-      description:
-        'Write server-side code that seamlessly integrates with your client components. Type-safe, secure, and simple.',
-    },
-    {
-      icon: <Server className="w-12 h-12 text-cyan-400" />,
-      title: 'Flexible Server Side Rendering',
-      description:
-        'Full-document SSR, streaming, and progressive enhancement out of the box. Control exactly what renders where.',
-    },
-    {
-      icon: <RouteIcon className="w-12 h-12 text-cyan-400" />,
-      title: 'API Routes',
-      description:
-        'Build type-safe API endpoints alongside your application. No separate backend needed.',
-    },
-    {
-      icon: <Shield className="w-12 h-12 text-cyan-400" />,
-      title: 'Strongly Typed Everything',
-      description:
-        'End-to-end type safety from server to client. Catch errors before they reach production.',
-    },
-    {
-      icon: <Waves className="w-12 h-12 text-cyan-400" />,
-      title: 'Full Streaming Support',
-      description:
-        'Stream data from server to client progressively. Perfect for AI applications and real-time updates.',
-    },
-    {
-      icon: <Sparkles className="w-12 h-12 text-cyan-400" />,
-      title: 'Next Generation Ready',
-      description:
-        'Built from the ground up for modern web applications. Deploy anywhere JavaScript runs.',
-    },
-  ]
+interface FileAttachment {
+  id: string
+  file: File
+  preview?: string
+}
+
+export default function Dashboard() {
+  const searchParams = Route.useSearch()
+  const [prompt, setPrompt] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isTyping, setIsTyping] = useState(false)
+  const [attachments, setAttachments] = useState<FileAttachment[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
+  const { user, isLoaded } = useUser()
+  const { openSignIn } = useClerk()
+  
+  const createDesignMutation = useConvexMutation(api.designs.createDesign)
+
+  // Restore prompt and auto-create after login
+  useEffect(() => {
+    if (isLoaded && user) {
+      const urlPrompt = searchParams.prompt
+      if (urlPrompt) {
+        setPrompt(urlPrompt)
+        createDesignFromPrompt(urlPrompt)
+        navigate({ to: '/', search: { prompt: '' } })
+        return
+      }
+
+      const pendingPrompt = localStorage.getItem('pendingPrompt')
+      if (pendingPrompt) {
+        localStorage.removeItem('pendingPrompt')
+        setPrompt(pendingPrompt)
+        createDesignFromPrompt(pendingPrompt)
+      }
+    }
+  }, [isLoaded, user])
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px"
+    }
+  }, [prompt])
+
+  const handleSuggestionClick = async (text: string) => {
+    setIsTyping(true)
+    setPrompt("")
+    for (let i = 0; i <= text.length; i++) {
+      await new Promise((r) => setTimeout(r, 30))
+      setPrompt(text.slice(0, i))
+    }
+    setIsTyping(false)
+  }
+
+  const createDesignFromPrompt = async (promptText: string) => {
+    if (!user) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const titleResult = await generateDesignTitle({ prompt: promptText })
+      if (!titleResult.success || !titleResult.title) {
+        throw new Error(titleResult.error || "Failed to generate design title")
+      }
+
+      const designId = `design-${Date.now()}-${Math.random().toString(36).substring(7)}`
+
+      await createDesignMutation({
+        designId,
+        userId: user.id,
+        name: titleResult.title,
+        nodes: JSON.stringify([]),
+      })
+
+      setPrompt("")
+      setAttachments([])
+
+      navigate({ to: `/design/${designId}` })
+    } catch (err) {
+      console.error("Error creating design:", err)
+      setError("Unable to create design. Please try again.")
+      setIsLoading(false)
+    }
+  }
+
+  const handleCreateProject = async () => {
+    if (!prompt.trim()) return
+
+    if (!user) {
+      localStorage.setItem("pendingPrompt", prompt)
+      navigate({ to: '/', search: { prompt } })
+      openSignIn({ appearance: { layout: { socialButtonsPlacement: "bottom" } } })
+      return
+    }
+
+    await createDesignFromPrompt(prompt)
+  }
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return
+
+    const maxFiles = 5
+    const newFiles = Array.from(files).slice(0, maxFiles - attachments.length)
+    const newAttachments: FileAttachment[] = newFiles.map((file) => {
+      const attachment: FileAttachment = {
+        id: Math.random().toString(36).substring(7),
+        file,
+      }
+
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          setAttachments((prev) =>
+            prev.map((a) => (a.id === attachment.id ? { ...a, preview: e.target?.result as string } : a))
+          )
+        }
+        reader.readAsDataURL(file)
+      }
+
+      return attachment
+    })
+
+    setAttachments((prev) => [...prev, ...newAttachments].slice(0, maxFiles))
+  }
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    handleFiles(e.dataTransfer.files)
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      {/* Auth Header */}
-      <div className="absolute top-0 right-0 p-6 z-10">
-        {isAuthenticated ? (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-gray-300">
-              <User className="w-5 h-5" />
-              <span className="text-sm">{user?.name || user?.email}</span>
-            </div>
-            <button
-              onClick={logout}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600 text-gray-300 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-3">
-            <Link
-              to="/auth/login"
-              className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-            >
-              Log In
-            </Link>
-            <Link
-              to="/auth/signup"
-              className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Sign Up
-            </Link>
-          </div>
-        )}
-      </div>
+    <div>
+      <div
+        className="relative z-10 flex flex-col min-h-screen"
+        style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 20%, #3f0f5c 40%, #5f1a3d 60%, #6b2d4d 80%, #4a2c3e 100%)" }}
+      >
+        <div className="flex-1 flex flex-col items-center justify-start pt-40 px-4">
+          <LiquidGlassHeader/>
+          <HeroHeading/>
 
-      <section className="relative py-20 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10"></div>
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <img
-              src="/tanstack-circle-logo.png"
-              alt="TanStack Logo"
-              className="w-24 h-24 md:w-32 md:h-32"
-            />
-            <h1 className="text-6xl md:text-7xl font-black text-white [letter-spacing:-0.08em]">
-              <span className="text-gray-300">TANSTACK</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                START
-              </span>
-            </h1>
+          <div className="w-full flex flex-col items-center">
+            <div className="w-full max-w-2xl mb-6 relative flex justify-center">
+              <motion.div
+                className="absolute inset-0 rounded-[32px] blur-3xl opacity-50"
+                animate={{
+                  background: isLoading
+                    ? "radial-gradient(ellipse 600px 400px at center, rgba(139,92,246,.4), rgba(59,130,246,.2), transparent 70%)"
+                    : isTyping
+                    ? "radial-gradient(ellipse 600px 400px at center, rgba(59,130,246,.3), transparent 70%)"
+                    : "radial-gradient(ellipse 600px 400px at center, rgba(100,116,139,.2), transparent 70%)"
+                }}
+                transition={{ duration: 0.6 }}
+              />
+
+              <motion.div
+                className="relative bg-black/80 backdrop-blur-xl rounded-[32px] border shadow-2xl overflow-hidden w-full"
+                animate={{
+                  borderColor: isLoading
+                    ? "rgb(139 92 246 / 0.8)"
+                    : isTyping
+                    ? "rgb(59 130 246 / 0.6)"
+                    : isDragging
+                    ? "rgb(139 92 246 / 0.6)"
+                    : "rgb(71 85 105 / 0.5)"
+                }}
+                transition={{ duration: 0.3 }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="p-4">
+                  <textarea
+                    ref={textareaRef}
+                    value={prompt}
+                    onChange={(e) => !isTyping && !isLoading && setPrompt(e.target.value)}
+                    placeholder={
+                      isLoading
+                        ? "Creating your design..."
+                        : isTyping
+                        ? "Filling in your prompt..."
+                        : isDragging
+                        ? "Drop files here..."
+                        : "Ask Lovable to create a"
+                    }
+                    disabled={isTyping || isLoading}
+                    className="w-full bg-transparent border-none text-white placeholder:text-slate-500 text-base py-2 resize-none outline-none max-h-52"
+                    style={{ lineHeight: "1.5" }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && !isTyping && !isLoading) {
+                        e.preventDefault()
+                        handleCreateProject()
+                      }
+                    }}
+                  />
+                </div>
+
+                <FileAttachments attachments={attachments} onRemove={removeAttachment} />
+
+                <div className="flex items-center justify-between px-4 pb-4">
+                  <div className="flex items-center gap-2 border-2 rounded-2xl">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleFiles(e.target.files)}
+                      accept="image/*,.pdf,.doc,.docx,.txt"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading || isTyping || attachments.length >= 5}
+                      className="h-8 px-3 rounded-md text-sm flex items-center gap-2 transition-colors disabled:opacity-50 text-slate-400 hover:text-white hover:bg-slate-800 hover:cursor-pointer"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                      Attach
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleCreateProject}
+                    disabled={!prompt.trim() || isTyping || isLoading}
+                    className="h-10 w-10 rounded-full bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white disabled:opacity-50 flex items-center justify-center"
+                  >
+                    {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+
+            <div className="w-full max-w-2xl flex justify-center mt-2">
+              <div className="w-full">
+                <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
+              </div>
+            </div>
           </div>
-          <p className="text-2xl md:text-3xl text-gray-300 mb-4 font-light">
-            The framework for next generation AI applications
-          </p>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto mb-8">
-            Full-stack framework powered by TanStack Router for React and Solid.
-            Build modern applications with server functions, streaming, and type
-            safety.
-          </p>
-          <div className="flex flex-col items-center gap-4">
+
+          {prompt.trim() && !isLoading && (
+            <p className="text-slate-400 text-sm text-center mt-4">Press Enter or click to create</p>
+          )}
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg max-w-2xl"
+            >
+              <p className="text-red-400 text-sm text-center">{error}</p>
+            </motion.div>
+          )}
+
+          {/* Dev Test Link */}
+          <div className="mt-8">
             <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
+              href="/test-live"
+              className="text-slate-400 hover:text-slate-300 text-xs underline"
             >
-              Documentation
+              🧪 Test Live Rendering
             </a>
-            <p className="text-gray-400 text-sm mt-2">
-              Begin your TanStack Start journey by editing{' '}
-              <code className="px-2 py-1 bg-slate-700 rounded text-cyan-400">
-                /src/routes/index.tsx
-              </code>
-            </p>
           </div>
         </div>
-      </section>
-
-      <section className="py-16 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
-            >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-white mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      </div>
     </div>
   )
 }

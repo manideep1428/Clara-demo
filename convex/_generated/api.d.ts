@@ -8,8 +8,9 @@
  * @module
  */
 
-import type * as auth from "../auth.js";
 import type * as designs from "../designs.js";
+import type * as messages from "../messages.js";
+import type * as nodes from "../nodes.js";
 
 import type {
   ApiFromModules,
@@ -26,8 +27,9 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  auth: typeof auth;
   designs: typeof designs;
+  messages: typeof messages;
+  nodes: typeof nodes;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
