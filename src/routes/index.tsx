@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { motion } from "framer-motion"
 import { ArrowUp, Loader, Paperclip } from "lucide-react"
 import { PromptSuggestions } from "@/components/PromptSuggestions"
