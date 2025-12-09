@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as clearData from "../clearData.js";
 import type * as designs from "../designs.js";
 import type * as messages from "../messages.js";
 import type * as nodes from "../nodes.js";
@@ -27,6 +28,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  clearData: typeof clearData;
   designs: typeof designs;
   messages: typeof messages;
   nodes: typeof nodes;

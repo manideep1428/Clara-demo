@@ -11,7 +11,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 type ChatStatus = 'submitted' | 'streaming' | 'error';
-import { ArrowUp, Loader2Icon, SquareIcon, XIcon } from 'lucide-react';
+import { ArrowUp, Loader2Icon, StopCircle, XIcon } from 'lucide-react';
 import type {
   ComponentProps,
   HTMLAttributes,
@@ -74,8 +74,8 @@ export const PromptInputTextarea = ({
         disableAutoResize
           ? 'field-sizing-fixed'
           : resizeOnNewLinesOnly
-          ? 'field-sizing-fixed'
-          : 'field-sizing-content max-h-[6lh]',
+            ? 'field-sizing-fixed'
+            : 'field-sizing-content max-h-[6lh]',
         'bg-transparent dark:bg-transparent',
         'focus-visible:ring-0',
         className,
@@ -162,7 +162,7 @@ export const PromptInputSubmit = ({
   if (status === 'submitted') {
     Icon = <Loader2Icon className="size-4 animate-spin" />;
   } else if (status === 'streaming') {
-    Icon = <SquareIcon className="size-4" />;
+    Icon = <StopCircle className="size-4" />;
   } else if (status === 'error') {
     Icon = <XIcon className="size-4" />;
   }

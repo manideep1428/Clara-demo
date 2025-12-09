@@ -30,6 +30,8 @@ export default defineSchema({
         htmlContent: v.string(),
         filePath: v.string(),
         language: v.string(),
+        x: v.optional(v.number()),
+        y: v.optional(v.number()),
         createdAt: v.number(),
         updatedAt: v.number(),
     })

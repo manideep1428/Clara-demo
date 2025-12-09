@@ -11,6 +11,8 @@ export const upsertNode = mutation({
     htmlContent: v.string(),
     filePath: v.string(),
     language: v.string(),
+    x: v.optional(v.number()),
+    y: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -27,6 +29,9 @@ export const upsertNode = mutation({
         htmlContent: args.htmlContent,
         filePath: args.filePath,
         language: args.language,
+        // Only update position if provided, otherwise keep existing
+        ...(args.x !== undefined && { x: args.x }),
+        ...(args.y !== undefined && { y: args.y }),
         updatedAt: now,
       });
       return existing._id;
@@ -40,8 +45,33 @@ export const upsertNode = mutation({
         htmlContent: args.htmlContent,
         filePath: args.filePath,
         language: args.language,
+        x: args.x,
+        y: args.y,
         createdAt: now,
         updatedAt: now,
+      });
+    }
+  },
+});
+
+// Update node position only
+export const updateNodePosition = mutation({
+  args: {
+    nodeId: v.string(),
+    x: v.number(),
+    y: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const node = await ctx.db
+      .query("nodes")
+      .withIndex("by_nodeId", (q) => q.eq("nodeId", args.nodeId))
+      .first();
+
+    if (node) {
+      await ctx.db.patch(node._id, {
+        x: args.x,
+        y: args.y,
+        updatedAt: Date.now(),
       });
     }
   },

@@ -1,11 +1,13 @@
 import { motion } from "framer-motion"
-import { LogOut } from "lucide-react"
+import { LogOut, LayoutDashboard } from "lucide-react"
 import { SignedIn, SignedOut, useUser, useClerk } from "@clerk/clerk-react"
 import { SignInButton } from "./SignInButton"
+import { useNavigate } from "@tanstack/react-router"
 
 export function LiquidGlassHeader() {
   const { user } = useUser()
   const { signOut } = useClerk()
+  const navigate = useNavigate()
 
   return (
     <motion.header
@@ -37,7 +39,14 @@ export function LiquidGlassHeader() {
       </SignedOut>
 
       <SignedIn>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate({ to: '/dashboard' })}
+            className="flex items-center gap-2 text-slate-300 hover:text-white transition"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Dashboard
+          </button>
           <span className="text-slate-300 text-sm select-none">
             {user?.primaryEmailAddress?.emailAddress || user?.username || 'User'}
           </span>

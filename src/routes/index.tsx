@@ -6,10 +6,12 @@ import { PromptSuggestions } from "@/components/PromptSuggestions"
 import { HeroHeading } from '@/components/hero-heading'
 import { LiquidGlassHeader } from '@/components/liquid-topbar'
 import { FileAttachments } from '@/components/FileAttachments'
-import { generateDesignTitle } from '@/api/generateDesignTitle'
+import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { useConvexMutation } from '@convex-dev/react-query'
 import { api } from '../../convex/_generated/api'
 import { useUser, useClerk } from '@clerk/clerk-react'
+import { Textarea } from '@/components/ui/textarea'
 
 export const Route = createFileRoute('/')({
   component: Dashboard,
@@ -27,7 +29,6 @@ interface FileAttachment {
 }
 
 export default function Dashboard() {
-  const searchParams = Route.useSearch()
   const [prompt, setPrompt] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
@@ -37,76 +38,51 @@ export default function Dashboard() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const { user, isLoaded } = useUser()
+  const { user } = useUser()
   const { openSignIn } = useClerk()
-  
+
   const createDesignMutation = useConvexMutation(api.designs.createDesign)
 
-  // Restore prompt and auto-create after login
-  useEffect(() => {
-    if (isLoaded && user) {
-      const urlPrompt = searchParams.prompt
-      if (urlPrompt) {
-        setPrompt(urlPrompt)
-        createDesignFromPrompt(urlPrompt)
-        navigate({ to: '/', search: { prompt: '' } })
-        return
-      }
 
-      const pendingPrompt = localStorage.getItem('pendingPrompt')
-      if (pendingPrompt) {
-        localStorage.removeItem('pendingPrompt')
-        setPrompt(pendingPrompt)
-        createDesignFromPrompt(pendingPrompt)
-      }
-    }
-  }, [isLoaded, user])
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px"
-    }
-  }, [prompt])
 
   const handleSuggestionClick = async (text: string) => {
     setIsTyping(true)
     setPrompt("")
     for (let i = 0; i <= text.length; i++) {
-      await new Promise((r) => setTimeout(r, 30))
+      await new Promise((r) => setTimeout(r, 5))
       setPrompt(text.slice(0, i))
     }
     setIsTyping(false)
   }
 
-  const createDesignFromPrompt = async (promptText: string) => {
+  const createStreamingProject = async (promptText: string) => {
     if (!user) return
 
     setIsLoading(true)
     setError(null)
 
     try {
-      const titleResult = await generateDesignTitle({ prompt: promptText })
-      if (!titleResult.success || !titleResult.title) {
-        throw new Error(titleResult.error || "Failed to generate design title")
-      }
+      // Generate UUID for the project
+      const projectId = crypto.randomUUID()
 
-      const designId = `design-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
+      // Create initial design record
       await createDesignMutation({
-        designId,
+        designId: projectId,
         userId: user.id,
-        name: titleResult.title,
+        name: promptText.slice(0, 50) + (promptText.length > 50 ? '...' : ''),
         nodes: JSON.stringify([]),
       })
 
-      setPrompt("")
-      setAttachments([])
+      // Redirect to design page with prompt in state
+      navigate({
+        to: `/design/${projectId}`,
+        // @ts-ignore
+        state: { prompt: promptText }
+      })
 
-      navigate({ to: `/design/${designId}` })
     } catch (err) {
-      console.error("Error creating design:", err)
-      setError("Unable to create design. Please try again.")
+      console.error("Error creating project:", err)
+      setError("Unable to create project. Please try again.")
       setIsLoading(false)
     }
   }
@@ -116,12 +92,11 @@ export default function Dashboard() {
 
     if (!user) {
       localStorage.setItem("pendingPrompt", prompt)
-      navigate({ to: '/', search: { prompt } })
       openSignIn({ appearance: { layout: { socialButtonsPlacement: "bottom" } } })
       return
     }
 
-    await createDesignFromPrompt(prompt)
+    await createStreamingProject(prompt)
   }
 
   const handleFiles = (files: FileList | null) => {
@@ -178,8 +153,8 @@ export default function Dashboard() {
         style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 20%, #3f0f5c 40%, #5f1a3d 60%, #6b2d4d 80%, #4a2c3e 100%)" }}
       >
         <div className="flex-1 flex flex-col items-center justify-start pt-40 px-4">
-          <LiquidGlassHeader/>
-          <HeroHeading/>
+          <LiquidGlassHeader />
+          <HeroHeading />
 
           <div className="w-full flex flex-col items-center">
             <div className="w-full max-w-2xl mb-6 relative flex justify-center">
@@ -189,8 +164,8 @@ export default function Dashboard() {
                   background: isLoading
                     ? "radial-gradient(ellipse 600px 400px at center, rgba(139,92,246,.4), rgba(59,130,246,.2), transparent 70%)"
                     : isTyping
-                    ? "radial-gradient(ellipse 600px 400px at center, rgba(59,130,246,.3), transparent 70%)"
-                    : "radial-gradient(ellipse 600px 400px at center, rgba(100,116,139,.2), transparent 70%)"
+                      ? "radial-gradient(ellipse 600px 400px at center, rgba(59,130,246,.3), transparent 70%)"
+                      : "radial-gradient(ellipse 600px 400px at center, rgba(100,116,139,.2), transparent 70%)"
                 }}
                 transition={{ duration: 0.6 }}
               />
@@ -201,41 +176,44 @@ export default function Dashboard() {
                   borderColor: isLoading
                     ? "rgb(139 92 246 / 0.8)"
                     : isTyping
-                    ? "rgb(59 130 246 / 0.6)"
-                    : isDragging
-                    ? "rgb(139 92 246 / 0.6)"
-                    : "rgb(71 85 105 / 0.5)"
+                      ? "rgb(59 130 246 / 0.6)"
+                      : isDragging
+                        ? "rgb(139 92 246 / 0.6)"
+                        : "rgb(71 85 105 / 0.5)"
                 }}
                 transition={{ duration: 0.3 }}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
-                <div className="p-4">
-                  <textarea
-                    ref={textareaRef}
-                    value={prompt}
-                    onChange={(e) => !isTyping && !isLoading && setPrompt(e.target.value)}
-                    placeholder={
-                      isLoading
-                        ? "Creating your design..."
-                        : isTyping
-                        ? "Filling in your prompt..."
-                        : isDragging
-                        ? "Drop files here..."
-                        : "Ask Lovable to create a"
-                    }
-                    disabled={isTyping || isLoading}
-                    className="w-full bg-transparent border-none text-white placeholder:text-slate-500 text-base py-2 resize-none outline-none max-h-52"
-                    style={{ lineHeight: "1.5" }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && !isTyping && !isLoading) {
-                        e.preventDefault()
-                        handleCreateProject()
+                <ScrollArea className="max-h-[300px]">
+                  <div className="p-4">
+                    <Textarea
+                      ref={textareaRef}
+                      value={prompt}
+                      onChange={(e) => !isTyping && !isLoading && setPrompt(e.target.value)}
+                      placeholder={
+                        isLoading
+                          ? "Creating your design..."
+                          : isTyping
+                            ? "Filling in your prompt..."
+                            : isDragging
+                              ? "Drop files here..."
+                              : "Ask Lovable to create a"
                       }
-                    }}
-                  />
-                </div>
+                      disabled={isTyping || isLoading}
+                      className="w-full bg-transparent border-none text-white placeholder:text-slate-500 text-base py-2 resize-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[100px]"
+                      style={{ lineHeight: "1.5" }}
+                      rows={1}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !isTyping && !isLoading) {
+                          e.preventDefault()
+                          handleCreateProject()
+                        }
+                      }}
+                    />
+                  </div>
+                </ScrollArea>
 
                 <FileAttachments attachments={attachments} onRemove={removeAttachment} />
 
@@ -276,6 +254,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+
 
           {prompt.trim() && !isLoading && (
             <p className="text-slate-400 text-sm text-center mt-4">Press Enter or click to create</p>

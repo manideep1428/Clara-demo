@@ -26,6 +26,8 @@ export interface ChatCompletionOptions {
   temperature?: number
   maxTokens?: number
   messages: ChatMessage[]
+  tools?: any[]
+  tool_choice?: any
 }
 
 /**
@@ -37,9 +39,8 @@ export async function generateChatCompletion(
 ): Promise<string> {
 
   const {
-    model = 'moonshotai/kimi-k2-instruct-0905',
+    model = 'claude-4.5-sonnet',
     temperature = 0.7,
-    maxTokens = 1000
   } = options
 
   try {
@@ -47,7 +48,6 @@ export async function generateChatCompletion(
       model,
       messages,
       temperature,
-      max_tokens: maxTokens
     })
 
     return response.choices[0]?.message?.content || 'No response generated'
@@ -60,14 +60,36 @@ export async function generateChatCompletion(
 /**
  * Stream chat completion responses (for real-time updates)
  */
+/**
+ * Chunk type for streaming chat completions
+ */
+export interface StreamChunk {
+  type: 'content' | 'tool';
+  content?: string;
+  toolCall?: {
+    index: number;
+    id?: string;
+    function?: {
+      name?: string;
+      arguments?: string;
+    };
+    type?: 'function';
+  };
+}
+
+/**
+ * Stream chat completion responses (for real-time updates)
+ */
 export async function* streamChatCompletion(
   messages: ChatMessage[],
-  options: Partial<ChatCompletionOptions> = {}
-): AsyncGenerator<string, void, unknown> {
+  options: Partial<ChatCompletionOptions> & { tools?: any[]; tool_choice?: any } = {}
+): AsyncGenerator<StreamChunk, void, unknown> {
   const {
     model = 'moonshotai/kimi-k2-instruct-0905',
     temperature = 0.7,
-    maxTokens = 4000
+    maxTokens = 4000,
+    tools,
+    tool_choice
   } = options
 
   try {
@@ -77,12 +99,29 @@ export async function* streamChatCompletion(
       temperature,
       max_tokens: maxTokens,
       stream: true,
+      tools,
+      tool_choice,
     })
 
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || ''
-      if (content) {
-        yield content
+      const delta = chunk.choices[0]?.delta
+
+      if (delta?.content) {
+        yield { type: 'content', content: delta.content }
+      }
+
+      if (delta?.tool_calls) {
+        for (const toolCall of delta.tool_calls) {
+          yield {
+            type: 'tool',
+            toolCall: {
+              index: toolCall.index,
+              id: toolCall.id,
+              function: toolCall.function,
+              type: toolCall.type,
+            }
+          }
+        }
       }
     }
   } catch (error) {
