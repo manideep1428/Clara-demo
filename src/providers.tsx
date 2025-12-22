@@ -6,12 +6,13 @@ import { ClerkProvider } from "@clerk/clerk-react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!;
-  const CLERK_PUBLISHABLE_KEY = (import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY!;
-  
+  const CLERK_PUBLISHABLE_KEY = (import.meta as any).env
+    .VITE_CLERK_PUBLISHABLE_KEY!;
+
   if (!CONVEX_URL) {
     console.error("missing envar VITE_CONVEX_URL");
   }
-  
+
   if (!CLERK_PUBLISHABLE_KEY) {
     console.error("missing envar VITE_CLERK_PUBLISHABLE_KEY");
   }
@@ -27,11 +28,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
   });
   convexQueryClient.connect(queryClient);
-  
+
   return (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
       <ConvexProvider client={convexQueryClient.convexClient}>
-        <ThemeProvider defaultTheme="light" storageKey="clara-theme">
+        <ThemeProvider defaultTheme="dark" storageKey="clara-theme">
           {children}
         </ThemeProvider>
       </ConvexProvider>

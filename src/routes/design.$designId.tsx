@@ -1,19 +1,30 @@
-import { createFileRoute, useParams, useLocation } from '@tanstack/react-router'
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { ChatBox } from '../components/ChatBox'
-import { useUser } from '@clerk/clerk-react';
-import { generateUUID } from '../lib/utils';
-import { useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import { SidebarProvider, Sidebar, SidebarContent, SidebarInset, SidebarTrigger } from '../components/ui/sidebar';
-import { FlowCanvas } from '../components/FlowCanvas';
+import {
+  createFileRoute,
+  useParams,
+  useLocation,
+} from "@tanstack/react-router";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { ChatBox } from "../components/ChatBox";
+import { useUser } from "@clerk/clerk-react";
+import { generateUUID } from "../lib/utils";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarInset,
+  SidebarTrigger,
+} from "../components/ui/sidebar";
+import { FlowCanvas } from "../components/FlowCanvas";
+import { ThemeToggle } from "../components/ThemeToggle";
 
-export const Route = createFileRoute('/design/$designId')({
+export const Route = createFileRoute("/design/$designId")({
   component: DesignPage,
-})
+});
 
 function DesignPage() {
-  const { designId } = useParams({ from: '/design/$designId' });
+  const { designId } = useParams({ from: "/design/$designId" });
   const location = useLocation();
   // @ts-ignore
   const prompt = location.state?.prompt as string | undefined;
@@ -26,15 +37,15 @@ function DesignPage() {
 
   const handleNodeUpdate = useCallback((incomingNodes: Map<string, any>) => {
     // Merge incoming nodes with existing liveNodes (additive update)
-    setLiveNodes(prev => {
+    setLiveNodes((prev) => {
       const merged = new Map(prev);
-      console.log('🔄 handleNodeUpdate:', {
+      console.log("🔄 handleNodeUpdate:", {
         incomingCount: incomingNodes.size,
         incomingIds: Array.from(incomingNodes.keys()),
         currentLiveCount: prev.size,
-        currentLiveIds: Array.from(prev.keys())
+        currentLiveIds: Array.from(prev.keys()),
       });
-      
+
       incomingNodes.forEach((node, key) => {
         const existing = merged.get(key);
         if (existing) {
@@ -42,15 +53,18 @@ function DesignPage() {
             ...existing,
             ...node,
             x: node.x !== undefined ? node.x : existing.x,
-            y: node.y !== undefined ? node.y : existing.y
+            y: node.y !== undefined ? node.y : existing.y,
           });
         } else {
-          console.log('  ✨ Adding NEW live node:', key, 'at', { x: node.x, y: node.y });
+          console.log("  ✨ Adding NEW live node:", key, "at", {
+            x: node.x,
+            y: node.y,
+          });
           merged.set(key, node);
         }
       });
-      
-      console.log('📍 Live nodes after update:', Array.from(merged.keys()));
+
+      console.log("📍 Live nodes after update:", Array.from(merged.keys()));
       return merged;
     });
   }, []);
@@ -61,16 +75,16 @@ function DesignPage() {
 
   const existingNodes = useQuery(api.nodes.getNodesByDesign, { designId });
   const existingMessages = useQuery(api.messages.getMessages, { designId });
-  
+
   // Track the latest node count in a ref for accurate position calculation
   const nodeCountRef = useRef(0);
   const liveNodesRef = useRef<Map<string, any>>(new Map());
-  
+
   useEffect(() => {
     nodeCountRef.current = existingNodes?.length || 0;
-    console.log('📊 Updated nodeCountRef:', nodeCountRef.current);
+    console.log("📊 Updated nodeCountRef:", nodeCountRef.current);
   }, [existingNodes]);
-  
+
   useEffect(() => {
     liveNodesRef.current = liveNodes;
   }, [liveNodes]);
@@ -79,57 +93,64 @@ function DesignPage() {
   // Only clean up nodes that are NOT streaming and exist in DB
   useEffect(() => {
     if (!existingNodes) return;
-    
+
     // Don't clean up while generating
     if (isGenerating) {
-      console.log('⏸️ Skipping cleanup - still generating');
+      console.log("⏸️ Skipping cleanup - still generating");
       return;
     }
-    
+
     // Only clean up after generation is complete
     const timeoutId = setTimeout(() => {
-      setLiveNodes(prev => {
+      setLiveNodes((prev) => {
         if (prev.size === 0) return prev;
-        
+
         const updated = new Map(prev);
         let cleaned = false;
-        
-        console.log('🧹 Running cleanup check. Live nodes:', Array.from(prev.keys()), 'DB nodes:', existingNodes.map(n => n.nodeId));
-        
+
+        console.log(
+          "🧹 Running cleanup check. Live nodes:",
+          Array.from(prev.keys()),
+          "DB nodes:",
+          existingNodes.map((n) => n.nodeId)
+        );
+
         // Remove nodes from liveNodes if they exist in DB and are not streaming
         prev.forEach((node, nodeId) => {
           if (!node.isStreaming) {
-            const existsInDb = existingNodes.some(dbNode => dbNode.nodeId === nodeId);
+            const existsInDb = existingNodes.some(
+              (dbNode) => dbNode.nodeId === nodeId
+            );
             if (existsInDb) {
               updated.delete(nodeId);
               cleaned = true;
-              console.log('🧹 Cleaned up live node (now in DB):', nodeId);
+              console.log("🧹 Cleaned up live node (now in DB):", nodeId);
             }
           } else {
-            console.log('⏳ Keeping streaming node:', nodeId);
+            console.log("⏳ Keeping streaming node:", nodeId);
           }
         });
-        
+
         return cleaned ? updated : prev;
       });
     }, 3000); // Wait 3 seconds after generation completes before cleanup
-    
+
     return () => clearTimeout(timeoutId);
   }, [existingNodes, isGenerating]);
 
   const allNodes = useMemo(() => {
     const nodesMap = new Map<string, any>();
 
-    console.log('🔍 Building nodes list:', {
+    console.log("🔍 Building nodes list:", {
       existingNodesCount: existingNodes?.length || 0,
       liveNodesCount: liveNodes.size,
-      existingNodeIds: existingNodes?.map(n => n.nodeId) || [],
+      existingNodeIds: existingNodes?.map((n) => n.nodeId) || [],
       liveNodeIds: Array.from(liveNodes.keys()),
     });
 
     // First, add all existing nodes from database
     if (existingNodes) {
-      existingNodes.forEach(node => {
+      existingNodes.forEach((node) => {
         nodesMap.set(node.nodeId, {
           id: node.nodeId,
           artifactId: node.artifactId,
@@ -145,25 +166,35 @@ function DesignPage() {
     // Then overlay live nodes (streaming or recently completed)
     liveNodes.forEach((node, nodeId) => {
       const existing = nodesMap.get(nodeId);
-      
+
       // Merge with existing node if present, otherwise use live node data
       nodesMap.set(nodeId, {
         ...existing,
         ...node,
         id: nodeId,
         // Preserve position from existing if live node doesn't have it
-        x: node.x !== undefined ? node.x : (existing?.x ?? ((nodesMap.size % 3) * 450)),
-        y: node.y !== undefined ? node.y : (existing?.y ?? (Math.floor(nodesMap.size / 3) * 850))
+        x:
+          node.x !== undefined
+            ? node.x
+            : (existing?.x ?? (nodesMap.size % 3) * 450),
+        y:
+          node.y !== undefined
+            ? node.y
+            : (existing?.y ?? Math.floor(nodesMap.size / 3) * 850),
       });
     });
 
     const nodes = Array.from(nodesMap.values());
-    console.log('📊 Final nodes to render:', nodes.length, nodes.map(n => ({ 
-      id: n.id, 
-      title: n.title, 
-      streaming: n.isStreaming,
-      position: { x: n.x, y: n.y }
-    })));
+    console.log(
+      "📊 Final nodes to render:",
+      nodes.length,
+      nodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        streaming: n.isStreaming,
+        position: { x: n.x, y: n.y },
+      }))
+    );
 
     return nodes;
   }, [existingNodes, liveNodes]);
@@ -181,35 +212,33 @@ function DesignPage() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div
-        className="flex flex-col h-screen w-full"
-        style={{
-          background: "linear-gradient(135deg, #080d15 0%, #0f0e24 20%, #1f0a2e 40%, #2f0f1f 60%, #35162a 80%, #251820 100%)"
-        }}
-      >
-        <header
-          className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between gap-2 border-b border-white/10 backdrop-blur-xl px-4"
-          style={{ background: "rgba(8, 13, 21, 0.8)" }}
-        >
+      <div className="flex flex-col h-screen w-full bg-linear-to-br from-background via-muted/20 to-background">
+        <header className="fixed top-0 left-0 right-0 z-50 flex h-14 items-center justify-between gap-2 border-b border-border bg-background/80 backdrop-blur-xl px-4">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="text-slate-400 hover:text-white" />
-            <div className="w-px h-6 bg-white/10 mx-2" />
-            <span className="font-semibold text-sm text-white">Design Preview</span>
+            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            <div className="w-px h-6 bg-border mx-2" />
+            <span className="font-semibold text-sm text-foreground">
+              Design Preview
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-slate-500">ID: {designId.slice(0, 8)}</div>
+            <div className="text-xs text-muted-foreground">
+              ID: {designId.slice(0, 8)}
+            </div>
+            <div className="w-px h-6 bg-border mx-2" />
+            <ThemeToggle />
           </div>
         </header>
 
         <div className="flex h-full pt-14">
           <Sidebar
-            className="border-r border-white/10 shadow-none !top-14 !h-[calc(100svh-3.5rem)]"
-            style={{
-              '--sidebar-width': '22rem',
-              '--sidebar-width-icon': '3rem',
-              background: 'rgba(8, 13, 21, 0.6)',
-              backdropFilter: 'blur(12px)'
-            } as React.CSSProperties}
+            className="border-r border-sidebar-border shadow-none !top-14 !h-[calc(100svh-3.5rem)] bg-sidebar/60 backdrop-blur-xl"
+            style={
+              {
+                "--sidebar-width": "22rem",
+                "--sidebar-width-icon": "3rem",
+              } as React.CSSProperties
+            }
           >
             <SidebarContent className="p-0 overflow-hidden flex flex-col h-full bg-transparent">
               <ChatBox
@@ -224,7 +253,11 @@ function DesignPage() {
                   const dbCount = nodeCountRef.current;
                   const liveCount = liveNodesRef.current.size;
                   const total = Math.max(dbCount, liveCount);
-                  console.log('🔢 getExistingNodeCount:', { dbCount, liveCount, returning: total });
+                  console.log("🔢 getExistingNodeCount:", {
+                    dbCount,
+                    liveCount,
+                    returning: total,
+                  });
                   return total;
                 }}
               />
@@ -233,14 +266,17 @@ function DesignPage() {
 
           <SidebarInset
             className="flex-1 overflow-hidden relative h-full"
-            style={{ background: 'transparent' }}
+            style={{ background: "transparent" }}
           >
             <div className="absolute inset-0">
               {allNodes.length > 0 ? (
-                <FlowCanvas key={`canvas-${allNodes.length}`} nodes={allNodes} />
+                <FlowCanvas
+                  key={`canvas-${allNodes.length}`}
+                  nodes={allNodes}
+                />
               ) : (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center text-slate-500">
+                  <div className="text-center text-muted-foreground">
                     <svg
                       className="w-16 h-16 mx-auto mb-4 opacity-30"
                       fill="none"
@@ -254,8 +290,12 @@ function DesignPage() {
                         d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                       />
                     </svg>
-                    <p className="text-lg text-slate-400">No designs yet</p>
-                    <p className="text-sm mt-2 text-slate-600">Start chatting to create your first design</p>
+                    <p className="text-lg text-muted-foreground">
+                      No designs yet
+                    </p>
+                    <p className="text-sm mt-2 text-muted-foreground/60">
+                      Start chatting to create your first design
+                    </p>
                   </div>
                 </div>
               )}
