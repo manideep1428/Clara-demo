@@ -30,7 +30,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.28.2",
-    "crypto": "^1.0.1",
     "framer-motion": "^12.23.25",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.555.0",
